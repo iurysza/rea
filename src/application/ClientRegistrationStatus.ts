@@ -3,6 +3,7 @@ import {
   clientServerListedDisabled,
   effectiveClientServer,
   parseClientConfiguration,
+  piExposureSchema,
 } from "./ClientConfigurationDocument.js";
 import { access, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -62,6 +63,7 @@ const registrationSchema = z
     tools: z.array(z.string()).optional(),
     disabled: z.boolean().optional(),
     enabled: z.boolean().optional(),
+    exposure: z.string().optional(),
   })
   .passthrough();
 
@@ -188,6 +190,15 @@ const registrationAligned = (
     registration.type !== "stdio"
   )
     return false;
+  // Pi infers stdio from a command and defaults to callable codemode exposure.
+  if (
+    client.format === "pi" &&
+    ((registration.type !== undefined && registration.type !== "stdio") ||
+      registration.exposure === "hidden" ||
+      (registration.exposure !== undefined &&
+        !piExposureSchema.safeParse(registration.exposure).success))
+  )
+    return false;
   if (
     client.format === "copilot_cli" &&
     (registration.type !== "stdio" ||
@@ -245,7 +256,7 @@ const parseRegistration = (
   if (client.format === "commandcode" && registration.transport !== "stdio")
     throw new TypeError("Expected an stdio registration");
   if (
-    client.format === "omp" &&
+    (client.format === "omp" || client.format === "pi") &&
     registration.type !== undefined &&
     registration.type !== "stdio"
   )
